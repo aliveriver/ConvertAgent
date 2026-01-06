@@ -49,8 +49,24 @@ export default {
     }
 
     const formatContent = (content) => {
+      // 移除代码块（只保留摘要）
+      let text = content
+      if (text.includes('```')) {
+        const parts = text.split('```')
+        text = parts[0].trim()
+        if (!text) {
+          text = '处理完成'
+        }
+      }
+      
+      // 转换文件链接为可点击的下载链接
+      text = text.replace(
+        /📄 \[([^\]]+)\]\(([^)]+)\)/g,
+        '<a href="http://localhost:8765$2" target="_blank" class="file-link">📄 $1</a>'
+      )
+      
       // 简单的 Markdown 转换
-      return content
+      return text
         .replace(/\n/g, '<br>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -133,5 +149,23 @@ export default {
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
+}
+
+.message-content .file-link {
+  display: inline-block;
+  padding: 8px 15px;
+  margin: 5px 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.message-content .file-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 </style>

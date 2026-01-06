@@ -9,23 +9,78 @@
 
       <!-- API Key 配置区 -->
       <div class="config-section" v-if="!agentReady">
-        <h2>🔑 配置 API Key</h2>
-        <input 
-          v-model="apiKey" 
-          type="password" 
-          placeholder="输入你的 OpenAI API Key"
-          class="input"
-          @keyup.enter="initAgent"
-        />
-        <button @click="initAgent" class="btn btn-primary" :disabled="loading">
+        <h2>🔑 配置 AI 服务</h2>
+        
+        <!-- 提供商选择 -->
+        <div class="provider-selection">
+          <label class="form-label">选择 AI 提供商</label>
+          <div class="provider-grid">
+            <label 
+              v-for="provider in providers" 
+              :key="provider.id"
+              :class="['provider-card', { active: selectedProvider === provider.id }]"
+            >
+              <input 
+                type="radio" 
+                :value="provider.id" 
+                v-model="selectedProvider"
+                name="provider"
+              />
+              <span class="provider-name">{{ provider.name }}</span>
+              <span class="provider-hint">{{ getProviderHint(provider.id) }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 模型选择（输入框） -->
+        <div class="model-selection">
+          <label class="form-label">
+            模型名称（可选）
+            <span class="hint-inline">留空使用默认模型</span>
+          </label>
+          <input 
+            v-model="selectedModel" 
+            type="text"
+            :placeholder="getModelPlaceholder()"
+            class="input"
+          />
+          <p class="model-examples" v-if="selectedProvider">
+            <strong>常用模型：</strong>
+            <span 
+              v-for="model in availableModels" 
+              :key="model"
+              class="model-tag"
+              @click="selectedModel = model"
+            >
+              {{ model }}
+            </span>
+          </p>
+        </div>
+
+        <!-- API Key 输入 -->
+        <div class="api-key-input">
+          <label class="form-label">API Key</label>
+          <input 
+            v-model="apiKey" 
+            type="password" 
+            :placeholder="getApiKeyPlaceholder()"
+            class="input"
+            @keyup.enter="initAgent"
+          />
+        </div>
+
+        <button @click="initAgent" class="btn btn-primary" :disabled="loading || !apiKey">
           {{ loading ? '初始化中...' : '初始化 Agent' }}
         </button>
-        <p class="hint">API Key 将安全保存在本地浏览器中</p>
+        <p class="hint">API Key 和设置将安全保存在本地浏览器中</p>
       </div>
 
       <!-- 模板模式 -->
       <div class="template-section" v-if="agentReady">
         <TemplateMode @process="processWithTemplate" :loading="loading" />
+        
+        <!-- 进度面板 -->
+        <ProgressPanel ref="progressPanel" />
         
         <!-- 结果显示 -->
         <ChatBox :messages="messages" />
@@ -35,19 +90,23 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import axios from 'axios'
 import ChatBox from './components/ChatBox.vue'
 import TemplateMode from './components/TemplateMode.vue'
+import ProgressPanel from './components/ProgressPanel.vue'
 
 const API_BASE = 'http://127.0.0.1:8765'
 const API_KEY_STORAGE = 'convertagent_api_key'
+const PROVIDER_STORAGE = 'convertagent_provider'
+const MODEL_STORAGE = 'convertagent_model'
 
 export default {
   name: 'App',
   components: {
     ChatBox,
-    TemplateMode
+    TemplateMode,
+    ProgressPanel
   },
   
   setup() {
@@ -55,22 +114,88 @@ export default {
     const agentReady = ref(false)
     const loading = ref(false)
     const messages = ref([])
+    const providers = ref([])
+    const selectedProvider = ref('openai')
+    const selectedModel = ref('')
 
-    // 页面加载时，尝试从 localStorage 读取 API Key
+    // 可用模型列表（根据选择的提供商）
+    const availableModels = computed(() => {
+      const provider = providers.value.find(p => p.id === selectedProvider.value)
+      return provider ? provider.models : []
+    })
+
+    // 监听提供商变化，重置模型选择
+    watch(selectedProvider, () => {
+      selectedModel.value = ''
+    })
+
+    // 获取提供商提示信息
+    const getProviderHint = (providerId) => {
+      const hints = {
+        'openai': '官方 GPT-4',
+        'siliconflow': '国内高性价比',
+        'zhipu': '智谱 GLM-4',
+        'moonshot': 'Kimi 长上下文',
+        'deepseek': 'DeepSeek 编程'
+      }
+      return hints[providerId] || ''
+    }
+
+    // 获取 API Key 占位符
+    const getApiKeyPlaceholder = () => {
+      const placeholders = {
+        'openai': '输入 OpenAI API Key (sk-...)',
+        'siliconflow': '输入硅基流动 API Key',
+        'zhipu': '输入智谱 API Key',
+        'moonshot': '输入月之暗面 API Key',
+        'deepseek': '输入 DeepSeek API Key'
+      }
+      return placeholders[selectedProvider.value] || '输入 API Key'
+    }
+
+    // 获取模型输入占位符
+    const getModelPlaceholder = () => {
+      const provider = providers.value.find(p => p.id === selectedProvider.value)
+      if (provider) {
+        return `如：${provider.default_model}`
+      }
+      return '输入模型名称'
+    }
+
+    // 加载提供商列表
+    const loadProviders = async () => {
+      try {
+        const response = await axios.get(`${API_BASE}/api/providers`)
+        providers.value = response.data.providers
+      } catch (error) {
+        console.error('加载提供商失败:', error)
+      }
+    }
+
+    // 页面加载时，尝试从 localStorage 读取配置
     onMounted(async () => {
+      await loadProviders()
+      
       const savedKey = localStorage.getItem(API_KEY_STORAGE)
+      const savedProvider = localStorage.getItem(PROVIDER_STORAGE)
+      const savedModel = localStorage.getItem(MODEL_STORAGE)
+      
       if (savedKey) {
         apiKey.value = savedKey
+        selectedProvider.value = savedProvider || 'openai'
+        selectedModel.value = savedModel || ''
         // 自动初始化 Agent
-        await autoInitAgent(savedKey)
+        await autoInitAgent(savedKey, selectedProvider.value, selectedModel.value)
       }
     })
 
     // 自动初始化（静默模式）
-    const autoInitAgent = async (key) => {
+    const autoInitAgent = async (key, provider, model) => {
       try {
         const formData = new FormData()
         formData.append('api_key', key)
+        formData.append('provider', provider)
+        if (model) formData.append('model', model)
         
         const response = await axios.post(`${API_BASE}/api/init`, formData)
         
@@ -78,12 +203,14 @@ export default {
           agentReady.value = true
           messages.value.push({
             role: 'system',
-            content: '✅ Agent 已自动初始化，可以开始使用！'
+            content: `✅ ${response.data.message}`
           })
         }
       } catch (error) {
-        // 静默失败，清除无效的 key
+        // 静默失败，清除无效的配置
         localStorage.removeItem(API_KEY_STORAGE)
+        localStorage.removeItem(PROVIDER_STORAGE)
+        localStorage.removeItem(MODEL_STORAGE)
         console.error('自动初始化失败:', error)
       }
     }
@@ -99,16 +226,23 @@ export default {
       try {
         const formData = new FormData()
         formData.append('api_key', apiKey.value)
+        formData.append('provider', selectedProvider.value)
+        if (selectedModel.value) {
+          formData.append('model', selectedModel.value)
+        }
         
         const response = await axios.post(`${API_BASE}/api/init`, formData)
         
         if (response.data.success) {
           agentReady.value = true
-          // 保存 API Key 到 localStorage
+          // 保存配置到 localStorage
           localStorage.setItem(API_KEY_STORAGE, apiKey.value)
+          localStorage.setItem(PROVIDER_STORAGE, selectedProvider.value)
+          localStorage.setItem(MODEL_STORAGE, selectedModel.value || '')
+          
           messages.value.push({
             role: 'system',
-            content: '✅ Agent 已就绪，API Key 已安全保存！'
+            content: `✅ ${response.data.message}`
           })
         }
       } catch (error) {
@@ -120,9 +254,13 @@ export default {
 
     // 退出登录
     const logout = () => {
-      if (confirm('确定要清除 API Key 并退出吗？')) {
+      if (confirm('确定要清除配置并退出吗？')) {
         localStorage.removeItem(API_KEY_STORAGE)
+        localStorage.removeItem(PROVIDER_STORAGE)
+        localStorage.removeItem(MODEL_STORAGE)
         apiKey.value = ''
+        selectedProvider.value = 'openai'
+        selectedModel.value = ''
         agentReady.value = false
         messages.value = []
       }
@@ -152,8 +290,8 @@ export default {
 
         if (response.data.success) {
           messages.value.push({
-            role: 'assistant',
-            content: `✅ ${response.data.message}\n\n${response.data.result.output}`
+            role: 'system',
+            content: `✅ ${response.data.message}`
           })
         }
       } catch (error) {
@@ -171,6 +309,13 @@ export default {
       agentReady,
       loading,
       messages,
+      providers,
+      selectedProvider,
+      selectedModel,
+      availableModels,
+      getProviderHint,
+      getApiKeyPlaceholder,
+      getModelPlaceholder,
       initAgent,
       logout,
       processWithTemplate
@@ -246,6 +391,81 @@ h1 {
   font-size: 0.9em;
   margin-top: 10px;
   text-align: center;
+}
+
+.provider-selection,
+.model-selection,
+.api-key-input {
+  margin-bottom: 25px;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 1em;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.provider-card {
+  padding: 20px 15px;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.provider-card:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.provider-card.active {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+}
+
+.provider-card input[type="radio"] {
+  display: none;
+}
+
+.provider-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95em;
+}
+
+.provider-hint {
+  font-size: 0.8em;
+  color: #999;
+}
+
+.select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 1em;
+  box-sizing: border-box;
+  background: white;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #667eea;
 }
 
 .input, .textarea {
