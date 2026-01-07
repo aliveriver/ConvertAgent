@@ -75,6 +75,99 @@ def analyze_template_structure(file_path: str) -> str:
         return f"分析模板失败：{str(e)}"
 
 @tool
+def analyze_content_structure(file_path: str) -> str:
+    """
+    智能分析内容文档的结构，识别标题、正文、图片、表格
+    
+    这个工具会自动识别：
+    - 标题（通常是前几段、较短、可能加粗或字号较大）
+    - 副标题
+    - 正文段落
+    - 图片位置和数量
+    - 表格位置和数量
+    
+    Args:
+        file_path: 内容文件路径
+        
+    Returns:
+        内容结构的简洁摘要
+    """
+    try:
+        doc = Document(file_path)
+        
+        # 分析所有段落
+        titles = []
+        body_paragraphs = []
+        
+        for i, para in enumerate(doc.paragraphs):
+            if not para.text.strip():
+                continue
+            
+            text = para.text.strip()
+            
+            # 识别标题的启发式规则：
+            # 1. 前3段
+            # 2. 字数较少（<50字）
+            # 3. 加粗或字号较大
+            is_likely_title = False
+            
+            if i < 3:  # 前3段更可能是标题
+                if len(text) < 50:  # 短句
+                    is_likely_title = True
+                elif para.runs and para.runs[0].bold:  # 加粗
+                    is_likely_title = True
+                elif para.runs and para.runs[0].font.size and para.runs[0].font.size.pt > 14:  # 大字号
+                    is_likely_title = True
+            
+            if is_likely_title:
+                font_size = para.runs[0].font.size.pt if para.runs and para.runs[0].font.size else "未知"
+                is_bold = para.runs[0].bold if para.runs else False
+                titles.append({
+                    "position": i,
+                    "text": text[:50],
+                    "font_size": font_size,
+                    "bold": is_bold
+                })
+            else:
+                body_paragraphs.append(i)
+        
+        # 统计图片
+        image_count = 0
+        for rel in doc.part.rels.values():
+            if "image" in rel.target_ref:
+                image_count += 1
+        
+        # 统计表格
+        table_count = len(doc.tables)
+        
+        # 生成摘要
+        summary_parts = [f"✅ 内容分析完成（共 {len(doc.paragraphs)} 个段落）：\n"]
+        
+        # 标题信息
+        if titles:
+            summary_parts.append(f"📌 识别到 {len(titles)} 个标题：")
+            for i, title in enumerate(titles[:3]):  # 只显示前3个
+                font_info = f"{title['font_size']}pt" if title['font_size'] != "未知" else "默认大小"
+                bold_info = "粗体" if title['bold'] else "普通"
+                summary_parts.append(f"  {i+1}. \"{title['text']}...\" ({font_info}, {bold_info})")
+        else:
+            summary_parts.append("📌 未识别到明显的标题（可能全文都是正文）")
+        
+        # 正文信息
+        summary_parts.append(f"\n📝 正文段落：{len(body_paragraphs)} 段")
+        
+        # 图片和表格
+        if image_count > 0:
+            summary_parts.append(f"🖼️  包含 {image_count} 张图片")
+        if table_count > 0:
+            summary_parts.append(f"📊 包含 {table_count} 个表格")
+        
+        return "\n".join(summary_parts)
+    
+    except Exception as e:
+        return f"分析内容失败：{str(e)}"
+
+@tool
 def summarize_document_structure(structure_json: str, max_items: int = 10) -> str:
     """
     将文档结构 JSON 转换为简洁的摘要
@@ -733,7 +826,8 @@ def convert_format(
 def get_document_tools():
     """返回所有工具的列表"""
     return [
-        analyze_template_structure,  # 新的高层工具（推荐）
+        analyze_template_structure,  # 模板分析（推荐）
+        analyze_content_structure,  # 内容分析（推荐）
         summarize_document_structure,  # 保留但标记为废弃
         read_document,
         write_document,

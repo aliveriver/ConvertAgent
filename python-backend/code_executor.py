@@ -1,6 +1,6 @@
 """
-代码生成和执行工具
-让 LLM 生成 Python 代码来处理文档，而不是直接操作
+Code generation and execution tools
+Allows LLM to generate Python code to process documents instead of direct operations
 """
 from langchain.tools import tool
 import subprocess
@@ -17,100 +17,100 @@ def generate_document_processing_code(
     output_path: str
 ) -> str:
     """
-    生成文档处理代码的指引工具
+    Code generation guide tool
     
-    ⚠️ 重要：参数必须是简短的摘要文字，不要传递完整的 JSON 结构！
+    WARNING: Parameters must be short summary text, not complete JSON structure!
     
-    这个工具会返回一个提示，指导 AI 如何生成 Python 代码来处理文档。
+    This tool returns a prompt to guide AI on how to generate Python code to process documents.
     
     Args:
-        template_summary: 模板文件的摘要信息（3-5 句话描述样式、格式、结构）
-        content_summary: 内容文件的摘要信息（标题、主要内容概述）
-        output_path: 输出文件的完整路径（例如：uploads/output_xxx_20240106.docx）
+        template_summary: Template file summary (3-5 sentences describing styles, formats, structure)
+        content_summary: Content file summary (title, main content overview)
+        output_path: Full path to output file (e.g.: uploads/output_xxx_20240106.docx)
         
     Returns:
-        代码生成指引
+        Code generation guide
         
-    示例调用：
-        template_summary="模板是大连理工大学论文格式，包含标题（24pt粗体居中）、副标题（22pt）、学院/专业等信息字段（15pt）"
-        content_summary="内容是小说《突然放弃的习惯》，包含标题、副标题和正文段落"
-        output_path="uploads/output_突然放弃的习惯_20240106_203945.docx"
+    Example call:
+        template_summary="Template is Dalian University of Technology thesis format, with title (24pt bold center), subtitle (22pt), college/major fields (15pt)"
+        content_summary="Content is novel 'Suddenly Give Up Habit', including title, subtitle and body paragraphs"
+        output_path="uploads/output_SuddenlyGiveUpHabit_20240106_203945.docx"
     """
     guide = f"""
-✅ 现在请生成完整的 Python 代码来处理文档。
+OK Now please generate complete Python code to process the document.
 
-【模板摘要】
+[Template Summary]
 {template_summary}
 
-【内容摘要】
+[Content Summary]
 {content_summary}
 
-【输出路径】
+[Output Path]
 {output_path}
 
-【代码要求】
-1. 使用 python-docx 库操作 Word 文档
-2. 代码必须完整可执行，包含所有 import 语句
-3. 从模板文件加载：Document("模板文件路径")
-4. 清空模板中的所有段落（保留样式）
-5. 将内容按照模板样式填入新段落
-6. 保存到输出路径：doc.save("OUTPUT_PATH_PLACEHOLDER")
-7. 不要使用硬编码的路径，使用占位符
+[Code Requirements]
+1. Use python-docx library to operate Word documents
+2. Code must be complete and executable, including all import statements
+3. Load from template file: Document("TEMPLATE_FILE_PATH")
+4. Clear template paragraph content but keep style definitions
+5. Fill content into new paragraphs according to template styles
+6. Save to output path: doc.save("OUTPUT_PATH_PLACEHOLDER")
+7. Do not use hardcoded paths, use placeholders
 
-【代码框架示例】
+[Code Framework Example]
 ```python
 from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# 1. 加载模板
-doc = Document("模板文件路径")
+# 1. Load template
+doc = Document("TEMPLATE_FILE_PATH")
 
-# 2. 读取内容文档
-content_doc = Document("内容文件路径")
+# 2. Read content document
+content_doc = Document("CONTENT_FILE_PATH")
 content_paragraphs = [p.text for p in content_doc.paragraphs if p.text.strip()]
 
-# 3. 获取模板的样式（从第一个段落）
+# 3. Get template styles (from first paragraph)
 template_styles = {{
     'title': doc.paragraphs[0].style if len(doc.paragraphs) > 0 else None,
     'body': doc.paragraphs[-1].style if len(doc.paragraphs) > 0 else None
 }}
 
-# 4. 清空模板内容（保留第一页的格式信息）
-# 从后往前删除，保留前几个格式段落
-for i in range(len(doc.paragraphs) - 1, 10, -1):  # 保留前10个段落作为格式参考
+# 4. Clear template content (keep first few paragraphs as format reference)
+# Delete from back to front, keep first 10 paragraphs as format reference
+for i in range(len(doc.paragraphs) - 1, 10, -1):
     p = doc.paragraphs[i]
     p._element.getparent().remove(p._element)
 
-# 5. 添加内容（使用模板样式）
+# 5. Add content (use template styles)
 for i, text in enumerate(content_paragraphs):
-    if i == 0:  # 标题
+    if i == 0:  # Title
         p = doc.add_paragraph(text)
         p.style = template_styles['title']
-    else:  # 正文
+    else:  # Body
         p = doc.add_paragraph(text)
         p.style = template_styles['body']
 
-# 6. 保存
+# 6. Save
 doc.save("OUTPUT_PATH_PLACEHOLDER")
-print("文档已生成")
+print("Document generated")
 ```
 
-请直接输出完整的 Python 代码，不要有额外的解释。代码要用 ```python 包裹。
+Please output complete Python code directly without extra explanations. Wrap code with ```python.
 
-⚠️⚠️⚠️ 生成代码后的必须执行步骤（不要跳过！）：
+WARNING WARNING WARNING Required steps after generating code (DO NOT SKIP!):
 
-生成代码后，你**必须立即**调用 execute_generated_code 工具来执行这段代码！
+After generating code, you **must immediately** call execute_generated_code tool to execute this code!
 
-参数如下：
-- code: 你刚生成的完整 Python 代码（包含 ```python 和 ``` 标记）
-- template_path: "模板文件路径"（从用户指令中提取，应该是 uploads\\template_xxx.docx）
-- content_path: "内容文件路径"（从用户指令中提取，应该是 uploads\\content_xxx.docx）
-- output_path: "{output_path}"（就是上面的输出路径）
+Parameters:
+- code: Your generated complete Python code (including ```python and ``` markers)
+- template_path: "TEMPLATE_FILE_PATH" (extract from user instruction, should be uploads\\template_xxx.docx)
+- content_path: "CONTENT_FILE_PATH" (extract from user instruction, should be uploads\\content_xxx.docx)
+- output_path: "{output_path}" (just the output path above)
 
-如果不执行代码，文档不会被生成！用户会看到"未找到输出文件"错误！
+If you don't execute the code, the document won't be generated! User will see "output file not found" error!
 
-⚠️ 下一步必须：调用 execute_generated_code 执行代码！
+WARNING Next step must: call execute_generated_code to execute code!
 """
     return guide
 
@@ -122,38 +122,38 @@ def execute_generated_code(
     output_path: str
 ) -> str:
     """
-    在安全的环境中执行 LLM 生成的代码
+    Execute LLM generated code in a safe environment
     
     Args:
-        code: LLM 生成的 Python 代码
-        template_path: 模板文件路径
-        content_path: 内容文件路径
-        output_path: 输出文件路径
+        code: Python code generated by LLM
+        template_path: Template file path
+        content_path: Content file path
+        output_path: Output file path
         
     Returns:
-        执行结果
+        Execution result
     """
     try:
-        # 提取代码块
+        # Extract code block
         code_match = re.search(r'```python\s*(.*?)\s*```', code, re.DOTALL)
         if code_match:
             clean_code = code_match.group(1)
         else:
             clean_code = code
         
-        # 输出调试信息
+        # Output debug info
         print("\n" + "="*60)
-        print("【代码执行调试信息】")
-        print(f"模板路径: {template_path}")
-        print(f"内容路径: {content_path}")
-        print(f"输出路径: {output_path}")
+        print("[Code Execution Debug Info]")
+        print(f"Template path: {template_path}")
+        print(f"Content path: {content_path}")
+        print(f"Output path: {output_path}")
         print("="*60 + "\n")
         
-        # 替换代码中的路径占位符（多种变体）
-        clean_code = clean_code.replace('"模板文件路径"', f'r"{template_path}"')
-        clean_code = clean_code.replace('"内容文件路径"', f'r"{content_path}"')
+        # Replace path placeholders in code (multiple variants)
+        clean_code = clean_code.replace('"TEMPLATE_FILE_PATH"', f'r"{template_path}"')
+        clean_code = clean_code.replace('"CONTENT_FILE_PATH"', f'r"{content_path}"')
         
-        # 替换输出路径的各种形式
+        # Replace output path in various forms
         clean_code = clean_code.replace('"OUTPUT_PATH_PLACEHOLDER"', f'r"{output_path}"')
         clean_code = clean_code.replace("'OUTPUT_PATH_PLACEHOLDER'", f'r"{output_path}"')
         clean_code = clean_code.replace('"output.docx"', f'r"{output_path}"')
@@ -161,102 +161,102 @@ def execute_generated_code(
         clean_code = clean_code.replace('"uploads/output.docx"', f'r"{output_path}"')
         clean_code = clean_code.replace("'uploads/output.docx'", f'r"{output_path}"')
         
-        # 替换具体的路径引用（如果代码中直接使用了路径）
+        # Replace specific path references (if code directly uses paths)
         clean_code = re.sub(
             r'output_path\s*=\s*["\'][^"\']*?\.docx["\']',
             f'output_path = r"{output_path}"',
             clean_code
         )
         
-        # 输出替换后的代码（用于调试）
-        print("【替换路径后的代码】")
+        # Output replaced code (for debugging)
+        print("[Code after path replacement]")
         print(clean_code)
         print("="*60 + "\n")
         
-        # 确保输出目录存在
+        # Ensure output directory exists
         output_dir = Path(output_path).parent
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 获取项目根目录（python-backend的父目录）
+        # Get project root directory (parent of python-backend)
         project_root = Path(__file__).parent.parent.resolve()
         
-        # 创建临时文件保存代码
+        # Create temporary file to save code
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
             temp_script = f.name
             f.write(clean_code)
         
         try:
-            # 执行代码（设置超时防止死循环）
+            # Execute code (set timeout to prevent infinite loops)
             result = subprocess.run(
                 [sys.executable, temp_script],
                 capture_output=True,
                 text=True,
-                timeout=60,  # 60秒超时
-                cwd=str(project_root)  # 在项目根目录执行
+                timeout=60,  # 60 second timeout
+                cwd=str(project_root)  # Execute in project root directory
             )
             
-            # 使用绝对路径检查文件是否存在
+            # Use absolute path to check if file exists
             output_file = Path(output_path).resolve()
             
-            # 检查是否成功
+            # Check if successful
             if result.returncode == 0:
                 if output_file.exists():
-                    return f"✅ 代码执行成功！文档已生成：{output_file}\n\n执行输出：\n{result.stdout}"
+                    return f"OK Code executed successfully! Document generated: {output_file}\n\nExecution output:\n{result.stdout}"
                 else:
-                    return f"⚠️ 代码执行完成，但未找到输出文件。\n期望路径：{output_file}\n\n输出：\n{result.stdout}\n\n错误：\n{result.stderr}"
+                    return f"WARNING Code execution completed, but output file not found.\nExpected path: {output_file}\n\nOutput:\n{result.stdout}\n\nError:\n{result.stderr}"
             else:
-                return f"❌ 代码执行失败：\n\n{result.stderr}\n\n输出：\n{result.stdout}"
+                return f"ERROR Code execution failed:\n\n{result.stderr}\n\nOutput:\n{result.stdout}"
         
         finally:
-            # 清理临时文件
+            # Clean up temporary file
             if os.path.exists(temp_script):
                 os.remove(temp_script)
     
     except subprocess.TimeoutExpired:
-        return "❌ 代码执行超时（超过60秒），可能存在死循环"
+        return "ERROR Code execution timeout (over 60 seconds), possible infinite loop"
     
     except Exception as e:
-        return f"❌ 执行代码时出错：{str(e)}"
+        return f"ERROR Error executing code: {str(e)}"
 
 @tool
 def validate_generated_code(code: str) -> str:
     """
-    验证生成的代码是否安全
+    Validate if generated code is safe
     
     Args:
-        code: 待验证的 Python 代码
+        code: Python code to validate
         
     Returns:
-        验证结果
+        Validation result
     """
-    # 危险操作列表
+    # List of dangerous operations
     dangerous_patterns = [
-        r'import\s+os\s*\.',  # os 模块的危险操作
+        r'import\s+os\s*\.',  # Dangerous os module operations
         r'os\.(system|popen|remove|rmdir)',
         r'subprocess\.(call|run|Popen)',
         r'eval\s*\(',
         r'exec\s*\(',
         r'__import__',
-        r'open\s*\([^)]*[\'"]w',  # 写入非预期文件
+        r'open\s*\([^)]*[\'"]w',  # Writing to unexpected files
         r'shutil\.(rmtree|move)',
     ]
     
     issues = []
     for pattern in dangerous_patterns:
         if re.search(pattern, code):
-            issues.append(f"发现潜在危险操作：{pattern}")
+            issues.append(f"Found potentially dangerous operation: {pattern}")
     
-    # 检查必要的库
+    # Check required libraries
     required_imports = ['from docx import', 'import docx']
     has_docx = any(imp in code for imp in required_imports)
     
     if not has_docx:
-        issues.append("代码中未导入 python-docx 库")
+        issues.append("python-docx library not imported in code")
     
     if issues:
-        return "⚠️ 代码验证警告：\n" + "\n".join(f"- {issue}" for issue in issues)
+        return "WARNING Code validation warnings:\n" + "\n".join(f"- {issue}" for issue in issues)
     else:
-        return "✅ 代码验证通过，可以安全执行"
+        return "OK Code validation passed, safe to execute"
 
 @tool
 def generate_and_execute_document_code(
@@ -267,156 +267,381 @@ def generate_and_execute_document_code(
     content_summary: str
 ) -> str:
     """
-    ⭐ 一键生成并执行文档处理代码（推荐使用！）
+    STAR One-click generate and execute document processing code (Recommended!)
     
-    这个工具会自动完成：
-    1. 生成 Python 代码来处理文档
-    2. 立即执行生成的代码
-    3. 返回执行结果
+    This tool automatically completes:
+    1. Use LLM to dynamically generate smart Python code based on summary
+    2. Execute generated code immediately
+    3. Return execution result
     
-    使用这个工具可以避免遗忘执行代码的步骤。
+    Using this tool avoids forgetting to execute code.
     
     Args:
-        template_path: 模板文件的完整路径（从用户指令中获取）
-        content_path: 内容文件的完整路径（从用户指令中获取）
-        output_path: 输出文件路径（从用户指令中获取）
-        template_summary: 模板的简短摘要（3-5句话描述样式和格式）
-        content_summary: 内容的简短摘要（标题和主要内容）
+        template_path: Full path to template file (get from user instruction)
+        content_path: Full path to content file (get from user instruction)
+        output_path: Output file path (get from user instruction)
+        template_summary: Brief template summary (3-5 sentences describing styles and formats)
+        content_summary: Brief content summary (title and main content)
         
     Returns:
-        执行结果
+        Execution result
         
-    示例调用：
+    Example call:
         template_path="uploads/template_xxx.docx"
         content_path="uploads/content_xxx.docx"
         output_path="uploads/output_xxx_20240106.docx"
-        template_summary="模板是大工论文格式，标题24pt粗体居中，副标题22pt，正文15pt"
-        content_summary="内容是小说《平滑度过的人生》，包含标题、副标题和正文段落"
+        template_summary="Template is DUT thesis format, title 24pt bold center, subtitle 22pt, body 15pt"
+        content_summary="Content is novel 'Smoothly Lived Life', including title, subtitle and body paragraphs"
     """
     try:
-        # 生成固定的代码模板（简化版）
-        generated_code = """```python
-from docx import Document
-
-# 加载模板
-doc = Document("模板文件路径")
-
-# 读取内容
-content_doc = Document("内容文件路径")
-content_texts = [p.text for p in content_doc.paragraphs if p.text.strip()]
-
-# 获取模板样式
-title_style = doc.paragraphs[0].style if len(doc.paragraphs) > 0 else None
-body_style = doc.paragraphs[10].style if len(doc.paragraphs) > 10 else None
-
-# 清空模板（保留前10个段落作为格式参考）
-for i in range(len(doc.paragraphs) - 1, 10, -1):
-    p = doc.paragraphs[i]
-    p._element.getparent().remove(p._element)
-
-# 添加内容
-for i, text in enumerate(content_texts):
-    p = doc.add_paragraph(text)
-    p.style = title_style if i == 0 else body_style
-
-# 保存
-doc.save("OUTPUT_PATH_PLACEHOLDER")
-print("文档已生成")
-```"""
+        from langchain_openai import ChatOpenAI
+        import os
         
-        # 内联执行代码逻辑（不调用工具）
-        try:
-            # 提取代码块
-            code_match = re.search(r'```python\s*(.*?)\s*```', generated_code, re.DOTALL)
-            if code_match:
-                clean_code = code_match.group(1)
-            else:
-                clean_code = generated_code
-            
-            # 输出调试信息
-            print("\n" + "="*60)
-            print("【代码执行调试信息】")
-            print(f"模板路径: {template_path}")
-            print(f"内容路径: {content_path}")
-            print(f"输出路径: {output_path}")
-            print("="*60 + "\n")
-            
-            # 转换为绝对路径（关键修复！）
-            # 注意：uploads 文件夹在 python-backend 目录下
-            backend_root = Path(__file__).parent.resolve()  # python-backend 目录
-            abs_template_path = (backend_root / template_path).resolve()
-            abs_content_path = (backend_root / content_path).resolve()
-            abs_output_path = (backend_root / output_path).resolve()
-            
-            print("【绝对路径】")
-            print(f"模板: {abs_template_path}")
-            print(f"内容: {abs_content_path}")
-            print(f"输出: {abs_output_path}")
-            
-            # 检查文件是否存在
-            if not abs_template_path.exists():
-                return f"❌ 模板文件不存在：{abs_template_path}"
-            if not abs_content_path.exists():
-                return f"❌ 内容文件不存在：{abs_content_path}"
-            
-            print("✅ 文件检查通过")
-            print("="*60 + "\n")
-            
-            # 替换路径占位符（使用绝对路径）
-            clean_code = clean_code.replace('"模板文件路径"', f'r"{abs_template_path}"')
-            clean_code = clean_code.replace('"内容文件路径"', f'r"{abs_content_path}"')
-            clean_code = clean_code.replace('"OUTPUT_PATH_PLACEHOLDER"', f'r"{abs_output_path}"')
-            clean_code = clean_code.replace("'OUTPUT_PATH_PLACEHOLDER'", f'r"{abs_output_path}"')
-            
-            # 输出替换后的代码
-            print("【替换路径后的代码】")
-            print(clean_code)
-            print("="*60 + "\n")
-            
-            # 确保输出目录存在
-            abs_output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 创建临时文件保存代码
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                temp_script = f.name
-                f.write(clean_code)
-            
+        # Use API configuration from environment variables (if available)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        api_base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
+        model_name = os.environ.get("MODEL_NAME", "gpt-4")
+        
+        # If no environment variables, use default configuration
+        if not api_key:
+            # Use improved fixed code template (fallback)
+            print("WARNING No API configuration found, using fixed code template")
+            generated_code = """```python
+from docx import Document
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+# Helper function to convert EMU to Pt
+def emu_to_pt(emu):
+    if emu is None:
+        return None
+    return round(emu / 12700, 1)  # 1 Pt = 12700 EMU
+
+# Step 1: Analyze template - use predefined STYLES not paragraphs
+template_doc = Document("TEMPLATE_FILE_PATH")
+
+# Display available styles
+print("="*60)
+print("ANALYZING TEMPLATE STYLES:")
+print("="*60)
+
+# Get key styles from template
+styles_to_check = ['Heading 1', 'Heading 2', 'Heading 3', 'Normal', '标题 1', '标题 2', '标题 3', '正文']
+available_styles = {}
+
+for style_name in template_doc.styles:
+    if hasattr(style_name, 'name'):
+        available_styles[style_name.name] = style_name
+
+# Extract properties for Heading 1 (or 标题 1) and Normal (or 正文)
+title_style_name = None
+body_style_name = None
+
+# Try to find title style
+for name in ['Heading 1', '标题 1', 'Heading1']:
+    if name in available_styles:
+        title_style_name = name
+        break
+
+# Try to find body style
+for name in ['Normal', '正文', 'Body Text']:
+    if name in available_styles:
+        body_style_name = name
+        break
+
+# If not found, fallback to analyzing paragraphs
+if not title_style_name or not body_style_name:
+    print("Using paragraph analysis as fallback...")
+    for para in template_doc.paragraphs:
+        if para.text.strip() and para.runs:
+            if not title_style_name:
+                title_style_name = para.style.name
+            elif not body_style_name:
+                body_style_name = para.style.name
+                break
+
+print(f"Selected title style: {title_style_name}")
+print(f"Selected body style: {body_style_name}")
+
+# Extract detailed properties
+title_props = {}
+body_props = {}
+
+if title_style_name and title_style_name in available_styles:
+    style = available_styles[title_style_name]
+    if hasattr(style, 'font'):
+        title_props['font_size_pt'] = emu_to_pt(style.font.size)
+        title_props['font_name'] = style.font.name
+        title_props['bold'] = style.font.bold
+    if hasattr(style, 'paragraph_format'):
+        title_props['alignment'] = style.paragraph_format.alignment
+
+if body_style_name and body_style_name in available_styles:
+    style = available_styles[body_style_name]
+    if hasattr(style, 'font'):
+        body_props['font_size_pt'] = emu_to_pt(style.font.size)
+        body_props['font_name'] = style.font.name
+        body_props['bold'] = style.font.bold
+    if hasattr(style, 'paragraph_format'):
+        body_props['alignment'] = style.paragraph_format.alignment
+
+print(f"\nTitle style properties:")
+print(f"  Font: {title_props.get('font_name', 'Default')}, Size: {title_props.get('font_size_pt', 'Default')} Pt")
+print(f"  Bold: {title_props.get('bold', False)}, Alignment: {title_props.get('alignment', 'LEFT')}")
+print(f"\nBody style properties:")
+print(f"  Font: {body_props.get('font_name', 'Default')}, Size: {body_props.get('font_size_pt', 'Default')} Pt")
+print(f"  Bold: {body_props.get('bold', False)}, Alignment: {body_props.get('alignment', 'LEFT')}")
+print("="*60 + "\n")
+
+# Step 2: Read content
+content_doc = Document("CONTENT_FILE_PATH")
+content_list = [p.text for p in content_doc.paragraphs if p.text.strip()]
+
+# Step 3: Create NEW BLANK document with template styles
+# IMPORTANT: Load template first to get styles, then clear content
+new_doc = Document("TEMPLATE_FILE_PATH")
+
+# Clear all paragraphs and tables
+for element in new_doc.element.body:
+    if element.tag.endswith('p') or element.tag.endswith('tbl'):
+        element.getparent().remove(element)
+
+# Step 4: Add content using template styles
+for i, text in enumerate(content_list):
+    new_para = new_doc.add_paragraph(text)
+    
+    # Apply style by name
+    if i < 3:  # First 3 as titles
+        if title_style_name:
+            new_para.style = title_style_name
+    else:  # Rest as body
+        if body_style_name:
+            new_para.style = body_style_name
+
+# Step 5: Save
+new_doc.save("OUTPUT_PATH_PLACEHOLDER")
+print(f"\nDocument generated with {len(content_list)} paragraphs")
+print(f"Applied '{title_style_name}' to first 3 paragraphs")
+print(f"Applied '{body_style_name}' to remaining paragraphs")
+```"""
+        else:
+            # Use LLM to dynamically generate code
             try:
-                # 执行代码（工作目录设置为 python-backend）
-                result = subprocess.run(
-                    [sys.executable, temp_script],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                    cwd=str(backend_root)  # 使用 python-backend 作为工作目录
+                print("SPARKLE Using LLM to dynamically generate code...")
+                llm = ChatOpenAI(
+                    model=model_name,
+                    temperature=0,
+                    openai_api_key=api_key,
+                    openai_api_base=api_base
                 )
                 
-                # 检查结果（使用绝对路径）
-                if result.returncode == 0:
-                    if abs_output_path.exists():
-                        return f"✅ 代码已自动生成并执行成功！文档已生成：{abs_output_path}\n\n执行输出：\n{result.stdout}"
-                    else:
-                        return f"⚠️ 代码执行完成，但未找到输出文件。\n期望路径：{abs_output_path}\n\n输出：\n{result.stdout}\n\n错误：\n{result.stderr}"
-                else:
-                    return f"❌ 代码执行失败：\n\n{result.stderr}\n\n输出：\n{result.stdout}"
+                # Build code generation prompt
+                code_generation_prompt = f"""You are a Python code generation expert for python-docx library.
+
+[Template Analysis]
+{template_summary}
+
+[Content Analysis]
+{content_summary}
+
+[CRITICAL: Use Template's Predefined Styles]
+DO NOT extract styles from paragraphs! Use template's built-in style definitions!
+
+[Code Strategy]
+```python
+from docx import Document
+from docx.shared import Pt
+
+# Helper: EMU to Pt conversion
+def emu_to_pt(emu):
+    return round(emu / 12700, 1) if emu else None
+
+# 1. Analyze template - get PREDEFINED STYLES
+template_doc = Document("TEMPLATE_FILE_PATH")
+
+# Find title and body styles
+title_style = None
+body_style = None
+
+for style in template_doc.styles:
+    name = style.name if hasattr(style, 'name') else None
+    if name in ['Heading 1', '标题 1'] and not title_style:
+        title_style = name
+    elif name in ['Normal', '正文'] and not body_style:
+        body_style = name
+
+print("="*60)
+print("LEARNED TEMPLATE STYLES:")
+print(f"Title style: {{title_style}}")
+print(f"Body style: {{body_style}}")
+print("="*60)
+
+# 2. Read content
+content_doc = Document("CONTENT_FILE_PATH")
+content_list = [p.text for p in content_doc.paragraphs if p.text.strip()]
+
+# 3. Create document with template styles
+new_doc = Document("TEMPLATE_FILE_PATH")
+
+# Clear all content
+for el in new_doc.element.body:
+    if el.tag.endswith('p') or el.tag.endswith('tbl'):
+        el.getparent().remove(el)
+
+# 4. Add content with styles
+for i, text in enumerate(content_list):
+    para = new_doc.add_paragraph(text)
+    if i < 3:
+        para.style = title_style
+    else:
+        para.style = body_style
+
+# 5. Save
+new_doc.save("OUTPUT_PATH_PLACEHOLDER")
+print(f"Generated {{len(content_list)}} paragraphs")
+```
+
+Output complete code with ```python, use placeholders."""
+
+                response = llm.invoke(code_generation_prompt)
+                generated_code = response.content
+                print("OK Code generation successful")
             
-            finally:
-                # 清理临时文件
-                if os.path.exists(temp_script):
-                    os.remove(temp_script)
+            except Exception as e:
+                # LLM call failed, fallback to fixed template
+                print(f"WARNING LLM call failed ({str(e)}), using fixed code template as fallback")
+                generated_code = """```python
+from docx import Document
+
+# 1. Read template to understand styles
+template_doc = Document("TEMPLATE_FILE_PATH")
+title_style_name = None
+body_style_name = None
+
+for para in template_doc.paragraphs:
+    if para.text.strip():
+        if title_style_name is None:
+            title_style_name = para.style.name
+        elif body_style_name is None:
+            body_style_name = para.style.name
+            break
+
+# 2. Read content
+content_doc = Document("CONTENT_FILE_PATH")
+content_list = [p.text for p in content_doc.paragraphs if p.text.strip()]
+
+# 3. Create new document (based on template, inherits styles)
+new_doc = Document("TEMPLATE_FILE_PATH")
+
+# 4. Clear all paragraphs
+for i in range(len(new_doc.paragraphs) - 1, -1, -1):
+    p = new_doc.paragraphs[i]
+    p._element.getparent().remove(p._element)
+
+# 5. Add content and apply styles
+for i, text in enumerate(content_list):
+    new_para = new_doc.add_paragraph(text)
+    if i < 3:
+        new_para.style = title_style_name or 'Heading 1'
+    else:
+        new_para.style = body_style_name or 'Normal'
+
+# 6. Save
+new_doc.save("OUTPUT_PATH_PLACEHOLDER")
+print(f"New document generated with {len(content_list)} paragraphs")
+```"""
         
-        except subprocess.TimeoutExpired:
-            return "❌ 代码执行超时（超过60秒）"
-        except Exception as e:
-            return f"❌ 执行过程出错：{str(e)}"
+        # Execute generated code
+        print("ROCKET Starting code execution...")
         
+        # Extract code block
+        code_match = re.search(r'```python\s*(.*?)\s*```', generated_code, re.DOTALL)
+        if code_match:
+            clean_code = code_match.group(1)
+        else:
+            clean_code = generated_code
+        
+        # Output debug info
+        print("\n" + "="*60)
+        print("[Code Execution Debug Info]")
+        print(f"Template path: {template_path}")
+        print(f"Content path: {content_path}")
+        print(f"Output path: {output_path}")
+        print("="*60 + "\n")
+        
+        # Convert to absolute paths
+        backend_root = Path(__file__).parent.resolve()  # python-backend directory
+        abs_template_path = (backend_root / template_path).resolve()
+        abs_content_path = (backend_root / content_path).resolve()
+        abs_output_path = (backend_root / output_path).resolve()
+        
+        print("[Absolute Paths]")
+        print(f"Template: {abs_template_path}")
+        print(f"Content: {abs_content_path}")
+        print(f"Output: {abs_output_path}")
+        
+        # Check if files exist
+        if not abs_template_path.exists():
+            return f"ERROR Template file does not exist: {abs_template_path}"
+        if not abs_content_path.exists():
+            return f"ERROR Content file does not exist: {abs_content_path}"
+        
+        print("OK File check passed")
+        print("="*60 + "\n")
+        
+        # Replace path placeholders (use absolute paths)
+        clean_code = clean_code.replace('"TEMPLATE_FILE_PATH"', f'r"{abs_template_path}"')
+        clean_code = clean_code.replace('"CONTENT_FILE_PATH"', f'r"{abs_content_path}"')
+        clean_code = clean_code.replace('"OUTPUT_PATH_PLACEHOLDER"', f'r"{abs_output_path}"')
+        clean_code = clean_code.replace("'OUTPUT_PATH_PLACEHOLDER'", f'r"{abs_output_path}"')
+        
+        # Output replaced code
+        print("[Code after path replacement]")
+        print(clean_code)
+        print("="*60 + "\n")
+        
+        # Ensure output directory exists
+        abs_output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Create temporary file to save code
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+            temp_script = f.name
+            f.write(clean_code)
+        
+        try:
+            # Execute code (working directory set to python-backend)
+            result = subprocess.run(
+                [sys.executable, temp_script],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=str(backend_root)  # Use python-backend as working directory
+            )
+            
+            # Check result (use absolute path)
+            if result.returncode == 0:
+                if abs_output_path.exists():
+                    return f"OK Code automatically generated and executed successfully! Document generated: {abs_output_path}\n\nExecution output:\n{result.stdout}"
+                else:
+                    return f"WARNING Code execution completed, but output file not found.\nExpected path: {abs_output_path}\n\nOutput:\n{result.stdout}\n\nError:\n{result.stderr}"
+            else:
+                return f"ERROR Code execution failed:\n\n{result.stderr}\n\nOutput:\n{result.stdout}"
+        
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_script):
+                os.remove(temp_script)
+    
+    except subprocess.TimeoutExpired:
+        return "ERROR Code execution timeout (over 60 seconds)"
     except Exception as e:
-        return f"❌ 生成并执行代码失败：{str(e)}"
+        import traceback
+        return f"ERROR Failed to generate and execute code: {str(e)}\n\nDetailed error:\n{traceback.format_exc()}"
 
 def get_code_execution_tools():
-    """返回代码执行相关的工具"""
+    """Return code execution related tools"""
     return [
-        generate_and_execute_document_code,  # 新的组合工具（推荐）
+        generate_and_execute_document_code,  # New combined tool (recommended)
         generate_document_processing_code,
         execute_generated_code,
         validate_generated_code
