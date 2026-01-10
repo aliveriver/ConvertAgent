@@ -120,6 +120,61 @@ async def init_agent(
             content={"success": False, "error": str(e)}
         )
 
+@app.post("/api/analyze-template")
+async def analyze_template(
+    template_file: UploadFile = File(...)
+):
+    """
+    分析模板文件并返回可用样式列表
+    
+    用户上传模板后，前端调用此接口获取模板中的样式定义，
+    然后让用户在结构化内容编辑器中选择每段内容应使用的样式。
+    
+    Args:
+        template_file: 模板文件 (.docx)
+        
+    Returns:
+        模板样式分析结果
+    """
+    try:
+        # 保存上传的模板文件
+        upload_dir = Path("uploads")
+        upload_dir.mkdir(exist_ok=True)
+        
+        template_path = upload_dir / f"template_{template_file.filename}"
+        with open(template_path, "wb") as f:
+            f.write(await template_file.read())
+        
+        # 使用 tools.py 中的函数分析模板
+        from tools import get_template_styles
+        
+        # 直接调用工具函数（不通过 Agent）
+        styles_json = get_template_styles.invoke(str(template_path))
+        
+        # 解析 JSON 结果
+        import json
+        styles = json.loads(styles_json)
+        
+        if "error" in styles:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": styles["error"]}
+            )
+        
+        return {
+            "success": True,
+            "template_path": str(template_path),
+            "styles": styles
+        }
+    
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+
 def process_in_background(file_path: str, instruction: str):
     """在后台线程执行 Agent 处理"""
     try:
@@ -157,7 +212,7 @@ def process_in_background(file_path: str, instruction: str):
         if output_files:
             file_links = []
             for f in output_files:
-                file_links.append(f"📄 [{f.name}](/api/download/{f.name})")
+                file_links.append(f"[FILE] [{f.name}](/api/download/{f.name})")
             result_msg = "\n".join(file_links)
         else:
             result_msg = result.get('output', '处理完成')
@@ -168,14 +223,14 @@ def process_in_background(file_path: str, instruction: str):
         # 推送完成消息
         progress_queue.put({
             "type": "complete",
-            "message": f"✅ 处理完成！\n\n{result_msg}",
+            "message": f"[OK] 处理完成！\n\n{result_msg}",
             "timestamp": time.time()
         })
         
     except Exception as e:
         progress_queue.put({
             "type": "error",
-            "message": f"❌ 处理失败: {str(e)}",
+            "message": f"[ERROR] 处理失败: {str(e)}",
             "timestamp": time.time()
         })
 
@@ -202,7 +257,7 @@ async def process_document(
         # 推送开始消息
         progress_queue.put({
             "type": "start",
-            "message": "🚀 开始处理文档...",
+            "message": "[START] 开始处理文档...",
             "timestamp": time.time()
         })
         
@@ -217,7 +272,7 @@ async def process_document(
         
         progress_queue.put({
             "type": "step",
-            "message": f"💾 文件已保存: {file.filename}",
+            "message": f"[SAVE] 文件已保存: {file.filename}",
             "timestamp": time.time()
         })
         
@@ -237,7 +292,7 @@ async def process_document(
     except Exception as e:
         progress_queue.put({
             "type": "error",
-            "message": f"❌ 处理失败: {str(e)}",
+            "message": f"[ERROR] 处理失败: {str(e)}",
             "timestamp": time.time()
         })
         return JSONResponse(
@@ -363,13 +418,13 @@ async def process_with_template(
             try:
                 progress_queue.put({
                     "type": "step",
-                    "message": "🚀 启动 Agent 分析模板...",
+                    "message": "[START] 启动 Agent 分析模板...",
                     "timestamp": time.time()
                 })
                 
                 progress_queue.put({
                     "type": "step",
-                    "message": f"📝 输出文件：{output_filename}",
+                    "message": f"[INFO] 输出文件：{output_filename}",
                     "timestamp": time.time()
                 })
                 
@@ -422,14 +477,14 @@ async def process_with_template(
                 # 推送完成消息
                 progress_queue.put({
                     "type": "complete",
-                    "message": f"✅ 模板处理完成！\n\n{result_msg}",
+                    "message": f"[OK] 模板处理完成！\n\n{result_msg}",
                     "timestamp": time.time()
                 })
                 
             except Exception as e:
                 progress_queue.put({
                     "type": "error",
-                    "message": f"❌ 处理失败: {str(e)}",
+                    "message": f"[ERROR] 处理失败: {str(e)}",
                     "timestamp": time.time()
                 })
         
@@ -446,13 +501,144 @@ async def process_with_template(
     except Exception as e:
         progress_queue.put({
             "type": "error",
-            "message": f"❌ 处理失败: {str(e)}",
+            "message": f"[ERROR] 处理失败: {str(e)}",
             "timestamp": time.time()
         })
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+
+@app.post("/api/process-structured")
+async def process_structured(
+    template_path: str = Form(...),
+    structured_content: str = Form(...),
+    output_format: str = Form(default="word")
+):
+    """
+    使用结构化内容生成文档（新流程）
+    
+    用户通过前端编辑器创建结构化内容（每段内容标记好对应的样式），
+    后端直接生成Python代码执行，不需要Agent多步推理。
+    
+    Args:
+        template_path: 模板文件路径（来自analyze-template返回）
+        structured_content: 结构化内容JSON
+        output_format: 输出格式
+        
+    JSON格式示例：
+        {
+            "elements": [
+                {"style_name": "Heading 1", "text": "文章标题"},
+                {"style_name": "Heading 2", "text": "第一章"},
+                {"style_name": "Normal", "text": "正文内容..."}
+            ]
+        }
+    """
+    try:
+        # 清空进度队列
+        while not progress_queue.empty():
+            progress_queue.get()
+        
+        progress_queue.put({
+            "type": "start",
+            "message": "[START] 开始生成文档...",
+            "timestamp": time.time()
+        })
+        
+        # 解析结构化内容
+        content_data = json.loads(structured_content)
+        elements = content_data.get("elements", [])
+        
+        if not elements:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "内容为空"}
+            )
+        
+        progress_queue.put({
+            "type": "step",
+            "message": f"[INFO] 解析到 {len(elements)} 个内容块",
+            "timestamp": time.time()
+        })
+        
+        # 生成输出文件路径
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"output_structured_{timestamp}.docx"
+        output_path = Path("uploads") / output_filename
+        
+        # 直接生成文档（不通过Agent）
+        from docx import Document
+        
+        progress_queue.put({
+            "type": "step",
+            "message": f"[INFO] 加载模板样式...",
+            "timestamp": time.time()
+        })
+        
+        # 加载模板以获取样式
+        doc = Document(template_path)
+        
+        # 清空模板内容
+        for element in doc.element.body[:]:
+            if element.tag.endswith('p') or element.tag.endswith('tbl'):
+                element.getparent().remove(element)
+        
+        progress_queue.put({
+            "type": "step",
+            "message": f"[INFO] 写入内容...",
+            "timestamp": time.time()
+        })
+        
+        # 添加内容
+        for elem in elements:
+            style_name = elem.get("style_name", "Normal")
+            text = elem.get("text", "")
+            
+            if text.strip():
+                para = doc.add_paragraph(text)
+                try:
+                    para.style = style_name
+                except:
+                    para.style = "Normal"
+        
+        # 保存文档
+        doc.save(str(output_path))
+        
+        progress_queue.put({
+            "type": "complete",
+            "message": f"[OK] 文档生成成功！\n\n[FILE] [{output_filename}](/api/download/{output_filename})",
+            "timestamp": time.time()
+        })
+        
+        return {
+            "success": True,
+            "output_path": str(output_path),
+            "filename": output_filename
+        }
+    
+    except json.JSONDecodeError as e:
+        progress_queue.put({
+            "type": "error",
+            "message": f"[ERROR] JSON解析错误: {str(e)}",
+            "timestamp": time.time()
+        })
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": f"JSON解析错误: {str(e)}"}
+        )
+    except Exception as e:
+        progress_queue.put({
+            "type": "error",
+            "message": f"[ERROR] 处理失败: {str(e)}",
+            "timestamp": time.time()
+        })
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 
 @app.get("/api/status")
 async def get_status():

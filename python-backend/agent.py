@@ -88,7 +88,7 @@ class DocumentAgent:
         os.environ["OPENAI_API_KEY"] = api_key
         os.environ["OPENAI_API_BASE"] = provider_config["base_url"]
         os.environ["MODEL_NAME"] = model_name
-        print(f"✅ API配置已设置: {self.provider_name} - {self.model_name}")
+        print(f"[OK] API配置已设置: {self.provider_name} - {self.model_name}")
         
         # 获取工具集（文档分析 + 代码执行）
         self.tools = get_document_tools() + get_code_execution_tools()
@@ -201,14 +201,14 @@ class DocumentAgent:
                             display_input = None
 
                         if display_input is None:
-                            progress_callback(f"⚙️ 步骤 {i+1}: 调用工具 {tool_name}")
+                            progress_callback(f"[STEP] 步骤 {i+1}: 调用工具 {tool_name}")
                         else:
-                            progress_callback(f"⚙️ 步骤 {i+1}: 调用工具 {tool_name} 参数: {display_input}")
+                            progress_callback(f"[STEP] 步骤 {i+1}: 调用工具 {tool_name} 参数: {display_input}")
             else:
                 result = self.executor.invoke({"input": full_input})
             
             if progress_callback:
-                progress_callback("✅ 处理完成")
+                progress_callback("[OK] 处理完成")
             
             return {
                 "success": True,
@@ -283,12 +283,12 @@ class DocumentAgent:
                         display_input = None
 
                     if display_input is None:
-                        progress_callback(f"⚙️ 步骤 {i+1}: 调用工具 {tool_name}")
+                        progress_callback(f"[STEP] 步骤 {i+1}: 调用工具 {tool_name}")
                     else:
-                        progress_callback(f"⚙️ 步骤 {i+1}: 调用工具 {tool_name} 参数: {display_input}")
+                        progress_callback(f"[STEP] 步骤 {i+1}: 调用工具 {tool_name} 参数: {display_input}")
             
             if progress_callback:
-                progress_callback("✅ 模板处理完成")
+                progress_callback("[OK] 模板处理完成")
             
             return {
                 "success": True,
